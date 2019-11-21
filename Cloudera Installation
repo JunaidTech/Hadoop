@@ -1,0 +1,71 @@
+*******************************************************************************
+	Delivering an Enterprise Data Hub in the cloud with Cloudera
+*******************************************************************************
+
+Start a instance with minimum 8 GB ram (preferably m4.large)
+
+In seccurity group - Select "Default" security group
+
+Edit Deafult security group as below
+all traffic - your-ip/32
+
+
+-----*** SSH in to the instance you created ***-----
+$ ssh -i /path/to/key_file.pem ubuntu@instance_hostname
+
+
+-----*** Update the server ***-----
+$ sudo apt-get update && sudo apt-get dist-upgrade -y
+
+-----*** Disable transparent huge pages ***-----
+$ sudo nano /etc/rc.local
+## Add these lines:
+
+if test -f /sys/kernel/mm/transparent_hugepage/enabled; then
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+fi
+
+if test -f /sys/kernel/mm/transparent_hugepage/defrag; then
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+fi
+
+$sudo -i
+
+$source /etc/rc.local 
+
+-----*** Install NTP ***-----
+$ sudo apt-get install ntp -y 
+$ sudo service ntp status
+## If it isn't running 
+$ sudo service ntp start 
+
+
+-----*** Set Swappiness ***-----
+sudo sysctl -a | grep vm.swappiness
+sudo sysctl vm.swappiness=1
+
+### Note : Now, save the instance to an image, call it “Cloudera Manager” Make sure to 
+check “No reboot”
+
+
+-----*** Install and start CM ***-----
+
+SSH into cloudera-manager host
+
+
+$ wget http://archive.cloudera.com/cm5/installer/latest/cloudera-manager-installer.bin
+
+$ chmod u+x cloudera-manager-installer.bin
+
+$ sudo ./cloudera-manager-installer.bin
+
+
+## in browser "public_ip_of_cm:7180" 
+
+username : admin
+password : admin 
+
+## Note : in login credentials page 
+	  select user ubuntu 
+	  all users accept same private key (give the .pem key created for the instances)
+

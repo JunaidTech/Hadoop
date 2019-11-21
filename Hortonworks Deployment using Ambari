@@ -1,0 +1,100 @@
+*********************************************************************
+		Hortonworks Deployment using Ambari
+*********************************************************************
+
+
+### Note : Since you're creating a larger cluster now, the NameNode needs more memory to 
+keep track of the metadata than what you used previously. Select an instance with 8 GB
+memory, prefarably m3.large or m4.large (try using spot instances)
+Create your EC2 instance and give it 30 GB storage and tag it as Ambari server
+
+-----*** Log in to the instance you created ***-----
+$ ssh -i /path/to/key_file.pem ubuntu@instance_hostname
+
+-----*** Disable transparent huge pages ***-----
+$ sudo nano /etc/rc.local
+## Add these lines:
+
+if test -f /sys/kernel/mm/transparent_hugepage/enabled; then
+    echo never > /sys/kernel/mm/transparent_hugepage/enabled
+fi
+
+if test -f /sys/kernel/mm/transparent_hugepage/defrag; then
+    echo never > /sys/kernel/mm/transparent_hugepage/defrag
+fi
+
+$ sudo -i
+# source /etc/rc.local
+
+
+-----*** Install NTP ***-----
+$ sudo apt-get update && sudo apt-get dist-upgrade -y
+$ sudo apt-get install ntp -y 
+$ sudo service ntp status
+## If it isn't running 
+$ sudo service ntp start 
+
+### Note : Now, save the instance to an image, call it “Ambari node.” Make sure to 
+check “No reboot”, you'll be using this instance as the Ambari server.
+
+
+------***** Install and start Ambari server *****------
+
+
+## Copy key to server
+$ scp -i key_file.pem key_file.pem ubuntu@server_public_hostname:~/.ssh/
+
+#### Note : you can find installation instructions here
+https://cwiki.apache.org/confluence/display/AMBARI/Install+Ambari+2.2.2+from+Public+Repositories
+
+
+----*** add the Ambari repository to the repository sources ***-----
+$ cd /etc/apt/sources.list.d
+$ sudo wget http://public-repo-1.hortonworks.com/ambari/ubuntu14/2.x/updates/2.2.0.0/ambari.list
+
+## Add the key to authenticate Ambari package
+$ sudo apt-key adv --recv-keys --keyserver keyserver.ubuntu.com B9733A7A07513CAD
+
+## update the package list and upgrade
+$ sudo apt-get update && sudo apt-get dist-upgrade -y
+
+
+-----***  install Ambari server and run the setup ***-----
+$ sudo apt-get install ambari-server -y
+$ sudo ambari-server setup
+(Choose the defaults)
+
+-----*** Start the server ***-----
+sudo ambari-server start
+
+
+### Start the ambari server on port 8080 in your browser
+Login as : admin | pass : admin
+Select cluster install
+add hostnames
+upload key
+
+
+
+---------****** BENCHMARKING *******---------
+
+SSH into namenode and switch to hdfs
+$ sudo su - hdfs
+
+---*** Test with terasort ***---
+
+hadoop jar /usr/hdp/2.3.6.0-3796/hadoop-mapreduce/hadoop-mapreduce-examples-*.jar teragen 500000 random-data
+
+hadoop jar /usr/hdp/2.3.6.0-3796/hadoop-mapreduce/hadoop-mapreduce-examples-*.jar terasort random-data sorted-data
+
+
+---*** Benchmark the I/O speed with TestDFSIO ***---
+
+hadoop jar /usr/hdp/2.3.6.0-3796/hadoop-mapreduce/hadoop-mapreduce-client-jobclient-tests.jar TestDFSIO -write -nrFiles 10 -fileSize 50MB
+
+hadoop jar /usr/hdp/2.3.6.0-3796/hadoop-mapreduce/hadoop-mapreduce-client-jobclient-tests.jar TestDFSIO -read -nrFiles 10 -fileSize 50MB
+
+hadoop jar /usr/hdp/2.3.6.0-3796/hadoop-mapreduce/hadoop-mapreduce-client-jobclient-tests.jar TestDFSIO -clean
+
+
+
