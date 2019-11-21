@@ -1,0 +1,330 @@
+*********************************************
+		Admin tasks
+*********************************************
+
+
+# Safemode
+
+hdfs dfsadmin -safemode get
+
+
+-----**** Creating a data pipeline from s3 to hdfs and vice versa ****-----
+
+nano core-site.xml
+
+
+<property>
+  <name>fs.s3a.access.key</name>
+  <description>AWS access key ID used by S3A file system.</description>
+  <value>AKIAITOWDHNFWV7HJCHA</value> 
+</property>
+
+<property>
+  <name>fs.s3a.secret.key</name>
+  <description>AWS secret key used by S3A file system.</description>
+  <value>ODjRZ3COCnvyiA7vTPqIQeL4ISv/MmJbPjyjEqw9</value>
+</property>
+
+
+
+nano hadoop-env.sh
+
+export HADOOP_CLASSPATH=$HADOOP_CLASSPATH:$HADOOP_HOME/share/hadoop/tools/lib/*
+
+d
+hadoop fs -cp s3n://<bucket-name>/<file-name> hdfs:///user/hduser/
+
+hdfs dfs -cp s3n://<bucket-name>/<file-name> /user/hduser/
+
+
+-----*** Distributed copy ***-----
+
+nano core-site.xml
+
+<property>
+<name>fs.s3.impl</name>
+<value>org.apache.hadoop.fs.s3.S3FileSystem</value>
+<description>The FileSystem for s3a: S3 uris.</description>
+</property>
+
+
+
+nano mapred-site.xml
+
+<property>
+  <!-- Add to the classpath used when running an M/R job -->
+  <name>mapreduce.application.classpath</name>
+  <value>$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/*,$HADOOP_MAPRED_HOME/share/hadoop/mapreduce/lib/*,$HADOOP_MAPRED_HOME/share/hadoop/tools/lib/*</value>
+</property>
+
+
+hadoop distcp /user/hduser/jinga.xml s3a://<bucket-name>/
+
+hadoop distcp hdfs:///user/hduser/jinga.xml s3a://<bucket-name>/
+
+
+-----***** Creating snapshots ****----
+
+hdfs dfsadmin -allowSnapshot /user/hduser/
+
+hdfs dfs -createSnapshot /user/hduser/ snapshot1
+
+hdfs lsSnapshottableDir
+
+hdfs dfs -ls /user/ubuntu/.snapshot
+
+hdfs dfs -deleteSnapshot /user/hduser/ snapshot1
+
+hdfs dfsadmin -disallowSnapshot /user/hduser/
+
+--> check snapshots on NN web UI
+
+
+
+-----**** Hadoop Archivals ****-----
+
+hadoop archive -archiveName xyz.har -p /user/ubuntu abcd hadoop-2.8.2.tar.gz /user/ubuntu
+
+hdfs dfs -ls
+
+hdfs dfs -ls -R xyz.har
+
+hdfs dfs -ls -R har:///user/ubuntu/xyz.har
+
+
+hdfs dfs -mkdir /user/ubuntu/unarch
+
+hdfs dfs -cp har:///user/ubuntu/xyz.har/abcd hdfs:/user/ubuntu/unarch
+
+hdfs dfs -ls -R /user/ubuntu/unarch
+
+
+
+-----**** Change ownerships ****-----
+
+hdfs dfs -chgrp sysadmin abcd
+
+hdfs dfs -chown hduser abcd
+
+hdfs dfs -chmod 700 abcd
+
+hdfs dfs -ls -R
+
+
+
+-----**** Configuring the HDFS quota ****-----
+
+hdfs dfsadmin -setQuota 20 /user/ubuntu
+
+hdfs dfsadmin -setSpaceQuota 	
+/user/ubuntu
+
+hdfs dfsadmin -clrQuota /user/ubuntu
+
+hdfs dfsadmin -clrSpaceQuota /user/ubuntu
+
+hdfs dfs -count -q /path/to/directory
+quota  rem_quota  space_quota  rem_space_quota  dir_count  file_count  size  file
+ none     inf        54975	    56897           3           8     786955 /u/ 
+
+
+-----*** Namenode metadata backup ****-----
+
+hdfs fsck /
+
+hdfs dfsadmin -report
+
+hdfs dfsadmin -report > report.txt
+
+hdfs dfsadmin -safemode enter
+
+hdfs dfsadmin -saveNamespace
+
+hdfs namenode -finalize
+
+cd /usr/local/hadoop/data/hdfs/namenode/
+
+cp -r current/ /home/ubuntu/meta-bup
+
+
+----->>>> Leave safemode
+hdfs dfsadmin -safemode leave
+
+-----**** Decommisioning nodes ****-----
+
+cd /usr/local/hadoop/etc/hadoop
+nano excludes
+<private-dns-dn>
+
+nano hdfs-site.xml
+<property>
+<name>dfs.hosts.exclude</name>
+<value>/usr/local/hadoop/etc/hadoop/excludes</value>
+<final>true</final>
+</property>
+
+nano yarn-site.xml
+<property>
+<name>yarn.resourcemanager.nodes.exclude-path</name>
+<value>/usr/local/hadoop/etc/hadoop/excludes</value>
+</property>
+
+ssh rm
+cd /usr/local/hadoop/etc/hadoop
+nano excludes
+<private-dns-dn>
+
+nano yarn-site.xml
+<property>
+<name>yarn.resourcemanager.nodes.exclude-path</name>
+<value>/usr/local/hadoop/etc/hadoop/excludes</value>
+</property>
+
+exit to NN
+
+hdfs dfsadmin -refreshNodes
+
+ssh rm
+yarn rmadmin -refreshNodes
+exit
+
+hdfs dfsadmin -report
+
+--> check NN web UI
+
+
+-----**** Filesystem check ****----
+
+hdfs fsck <path>
+hdfs fsck /
+
+## Options for fsck. To be given after path
+-delete					Delete corrupted files.
+-files					Print out files being checked.
+-files -blocks				Print out the block report
+-files -blocks -locations		Print out locations for every block.
+-includeSnapshots			Include snapshot data if the given path indicates a snapshottable directory or there are snapshottable 						directories under it.
+-list-corruptfileblocks			Print out list of missing blocks and files they belong to.
+-move					Move corrupted files to /lost+found.
+-blockId				Print out information about the block.
+
+
+-----**** Trash configuration ****-----
+
+nano core-site.xml
+
+<property>
+<name>fs.trash.interval</name>
+<value>30</value>
+<description>Number of minutes between trash checkpoints. If zero, the trash feature is disabled</description>
+</property>
+<property>
+<name>fs.trash.checkpoint.interval</name>
+<value>15</value>
+</property>
+
+
+hdfs dfs -rm <file>
+
+hdfs dfs -ls -R <path>
+
+## To permanently delete without going to trash
+ hdfs dfs -rm -skipTrash <path-to-file>
+
+
+-----**** Changing the block size ****-----
+
+nano hdfs-site.xml
+<property>
+<name>dfs.block.size</name>
+<value>256m</value> 
+</property>
+
+
+
+hadoop version
+
+hadoop fs -du hdfs:/  -------------disk usage
+
+hadoop fs -count hdfs:/ --------- file count
+
+
+----**** Setting Replication for a dataset ----*****
+
+hdfs dfs -setrep -w 4 <file-name>
+
+
+
+-----**** Yarn Administration ****----
+
+## Submit inbuild hadoop jobs (Open 4 terminals and submit same job at a time)
+
+
+yarn jar /usr/local/hadoop/share/hadoop/mapreduce/hadoop-mapreduce-examples-2.7.4.jar pi  4 10000
+
+yarn application -list
+
+yarn application -list -appStates ALL
+
+##To get application ID use 
+
+yarn application -list
+
+yarn application -status application_1459542433815_0002
+
+## Change the priority
+
+mapred job -set-priority pplication_1459542433815_0002 <priority>
+
+--> VERY_HIGH, HIGH, NORMAL, LOW, VERY_LOW
+
+## Kill an application
+
+yarn application -kill application_1459542433815_0002
+
+yarn logs -applicationId application_1459542433815_0002
+
+
+
+
+-----**** Commisioning new nodes ****-----
+
+cd /usr/local/hadoop/etc/hadoop
+nano includes
+<private-dns-dn>
+
+nano hdfs-site.xml
+<property>
+<name>dfs.hosts.include</name>
+<value>/usr/local/hadoop/etc/hadoop/includes</value>
+<final>true</final>
+</property>
+
+nano yarn-site.xml
+<property>
+<name>yarn.resourcemanager.nodes.include-path</name>
+<value>/usr/local/hadoop/etc/hadoop/includes</value>
+</property>
+
+ssh rm
+cd /usr/local/hadoop/etc/hadoop
+nano includes
+<private-dns-dn>
+
+nano yarn-site.xml
+<property>
+<name>yarn.resourcemanager.nodes.include-path</name>
+<value>/usr/local/hadoop/etc/hadoop/includes</value>
+</property>
+
+exit to NN
+
+hdfs dfsadmin -refreshNodes
+
+ssh rm
+yarn rmadmin -refreshNodes
+exit
+
+hdfs dfsadmin -report
+
+--> check NN web UI
